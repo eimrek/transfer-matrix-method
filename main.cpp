@@ -26,36 +26,40 @@ double barrier_rectangle(double x) {
 	return 0.0;
 }
 
-
-double min_pot = -4.0;
-/** x - nm; f - V/nm */
-double barrier_schottky_nordheim(double x, double f) {
-	double b = 11.5;  // mu + phi; eV
+void barrier_schottky_nordheim_roots(double f, double phi, double& x1_out, double& x2_out) {
 	double a = -f; // q_e*V/nm = eV/nm
+	double b = 7.0 + phi;  // mu + phi; eV
 	double c = -constants::q_e*constants::q_e/(16*constants::pi*constants::eps0); // eV*nm
-
-	double x_start = 1.0;
-	double x1 = x_start - (-b+std::sqrt(b*b-4*a*c))/(2*a);
-	double x2 = x1 + (-b-std::sqrt(b*b-4*a*c))/(2*a);
-
-	//std::cout << x1 << " " << x2 << std::endl;
-
-	if (x < x_start) return 0.0;
-	double pot = b + a*(x-x1) + c/(x-x1);
-	if (pot < min_pot) return min_pot;
-	return pot;
-
+	x1_out = (-b+std::sqrt(b*b-4*a*c))/(2*a);
+	x2_out = (-b-std::sqrt(b*b-4*a*c))/(2*a);
 }
 
-std::complex<double> calculate_k(double energy, double position, double (*barrier)(double x)) {
+/** x - nm; f - V/nm; min_pot - eV */
+double barrier_schottky_nordheim(double x, double f, double phi = 4.5, double min_pot = 0.0) {
 
-	double potential = (*barrier)(position);
+	double a = -f; // q_e*V/nm = eV/nm
+	double b = 7.0 + phi;  // mu + phi; eV
+	double c = -constants::q_e*constants::q_e/(16*constants::pi*constants::eps0); // eV*nm
+
+	double x1, x2;
+	barrier_schottky_nordheim_roots(f, phi, x1, x2);
+
+	if (x < 0.0) return 0.0;
+	double pot = b + a*(x+x1) + c/(x+x1);
+	if (pot < min_pot) return min_pot;
+	return pot;
+}
+
+std::complex<double> calculate_k(double energy, double position, std::function<double(double)> barrier) {
+
+	double potential = barrier(position);
 	double kin_energy = energy-potential;
 	if (kin_energy == 0) kin_energy = 1e-14;
 	return std::sqrt(std::complex<double>(kin_energy/constants::const_c, 0));
 }
 
-double calculate_transmission(double energy, double xmin, double xmax, int num_regions, double (*barrier)(double x)) {
+double calculate_transmission(double energy, double xmin, double xmax,
+							  int num_regions, std::function<double(double)> barrier) {
 
 	double dx = (xmax-xmin)/num_regions;
 
@@ -65,7 +69,7 @@ double calculate_transmission(double energy, double xmin, double xmax, int num_r
 	std::array<std::complex<double>, 4> transfer_matrix = {1., 0., 0., 1.};
 
 	// potential and k in first region
-	std::complex<double> k1 = calculate_k(energy, 0.5*dx, barrier);
+	std::complex<double> k1 = calculate_k(energy, xmin + 0.5*dx, barrier);
 
 	std::complex<double> k_first = k1;
 	std::complex<double> k2;
@@ -73,7 +77,7 @@ double calculate_transmission(double energy, double xmin, double xmax, int num_r
 	// starting from the 2nd region, loop over all transitions
 	for (int i = 1; i < num_regions; i++) {
 		// potential and k in the next region of the transition
-		k2 = calculate_k(energy, (i+0.5)*dx, barrier);
+		k2 = calculate_k(energy, xmin + (i+0.5)*dx, barrier);
 
 		// discontinuity matrix elements
 		std::complex<double> dm1 = 0.5*(1. + k2/k1);
@@ -115,8 +119,9 @@ double calculate_transmission(double energy, double xmin, double xmax, int num_r
 
 	double transmission = k2.real()/k_first.real() *
 						  1./(std::abs(transfer_matrix[0])*std::abs(transfer_matrix[0]));
-	double reflection = (std::abs(transfer_matrix[2])*std::abs(transfer_matrix[2])) /
-						(std::abs(transfer_matrix[0])*std::abs(transfer_matrix[0]));
+
+	//double reflection = (std::abs(transfer_matrix[2])*std::abs(transfer_matrix[2])) /
+	//					(std::abs(transfer_matrix[0])*std::abs(transfer_matrix[0]));
 	/*
 	printf("T:   %10.3e\n", transmission);
 	printf("R:   %10.3e\n", reflection);
@@ -127,12 +132,30 @@ double calculate_transmission(double energy, double xmin, double xmax, int num_r
 
 int main() {
 
+	double field = 4.0;
+	double phi = 4.5;
+
+	double emin = 0.0;
+	double emax = 12.0;
+
+	std::string tunnel_file = "./data/tunnel_data_4.txt";
+	std::string potential_file = "./data/potential_4.txt";
+
+	// Roots of the potential:
+	double x1, x2;
+	barrier_schottky_nordheim_roots(field, phi, x1, x2);
+
+	// The coordinate system is chosen such that the first root is x=0
+	// and thus, the second root is at x2-x1
+	// corresponding integration limits
+	double xmin = - 1.0;
+	double xmax = x2 - x1 + 1.0;
+
 	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-	FILE * outf = fopen("./data/outf.txt", "w");
-	for (int i = 0; i < 1500; i++) {
-		double energy = 0.01*i;
-		auto barrier = [](double x) {return barrier_schottky_nordheim(x, 4.0);};
-		double transm = calculate_transmission(energy, 0.0, 20.0, 20000, barrier);
+	FILE * outf = fopen(tunnel_file.c_str(), "w");
+	for (double energy = emin; energy <= emax; energy += 0.01) {
+		auto barrier = [&field, &phi](double x) {return barrier_schottky_nordheim(x, field, phi);};
+		double transm = calculate_transmission(energy, xmin, xmax, 20000, barrier);
 
 		printf("%.5f %.10e\n", energy, transm);
 		fprintf(outf, "%.5f %.10e\n", energy, transm);
@@ -142,10 +165,9 @@ int main() {
 
 	std::cout << std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count()/1e6 << std::endl;
 
-	FILE * file = fopen("./data/potential.txt", "w");
-	for (int i = 0; i < 400; i++) {
-		double x = i*0.1;
-		fprintf(file, "%.2f %.5f\n", x, barrier_schottky_nordheim(x, 1.0));
+	FILE * file = fopen(potential_file.c_str(), "w");
+	for (double x = xmin; x < xmax; x+=0.01) {
+		fprintf(file, "%.2f %.5f\n", x, barrier_schottky_nordheim(x, field, phi));
 	}
 	fclose(file);
 
