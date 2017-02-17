@@ -126,33 +126,23 @@ double calculate_transmission(double energy, double xmin, double xmax, int num_r
 }
 
 int main() {
-	//double transmission =  calculate_transmission(0.3);
-	//printf("T:   %10.3e\n", transmission);
 
-	/*
-	auto barrier = [](double x) {return barrier_schottky_nordheim(x, 1.0, -5.0);};
-
-	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-	for (int i = 0; i < 5; i++) {
-		double xmax = 14.0+i*2.0;
-		printf("%.1f %.10e\n", xmax, calculate_transmission(10.0, 0.0, xmax, 2000000, barrier));
-	}
-	std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
-	*/
 	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 	FILE * outf = fopen("./data/outf.txt", "w");
 	for (int i = 0; i < 1500; i++) {
 		double energy = 0.01*i;
-		auto barrier = [](double x) {return barrier_schottky_nordheim(x, 1.0);};
-		printf("%.5f %.10e\n", energy, calculate_transmission(energy, 0.0, 20.0, 20000, barrier));
-		fprintf(outf, "%.5f %.10e\n", energy, calculate_transmission(energy, 0.0, 20.0, 20000, barrier));
+		auto barrier = [](double x) {return barrier_schottky_nordheim(x, 4.0);};
+		double transm = calculate_transmission(energy, 0.0, 20.0, 20000, barrier);
+
+		printf("%.5f %.10e\n", energy, transm);
+		fprintf(outf, "%.5f %.10e\n", energy, transm);
 	}
 	fclose(outf);
 	std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
 
 	std::cout << std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count()/1e6 << std::endl;
 
-	FILE * file = fopen("./data/test.txt", "w");
+	FILE * file = fopen("./data/potential.txt", "w");
 	for (int i = 0; i < 400; i++) {
 		double x = i*0.1;
 		fprintf(file, "%.2f %.5f\n", x, barrier_schottky_nordheim(x, 1.0));

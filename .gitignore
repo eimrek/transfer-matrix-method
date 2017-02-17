@@ -8,4 +8,6 @@
 data
 tmm*
 
+# ipython files
+.ipynb_checkpoints
 
