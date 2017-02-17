@@ -17,6 +17,7 @@ CFLAGS = -g -Wall --std=c++11 $(XCFLAGS)
 LFLAGS = $(XLFLAGS)
 
 $(APP): main.cpp
+	@mkdir -p data
 	$(CC) $(CFLAGS) $(LFLAGS) $^ -o $@
 
 clean:
