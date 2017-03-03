@@ -8,6 +8,7 @@
 #include <array>
 #include <cstdio>
 #include <chrono>
+#include <functional>
 
 namespace constants {
 	const double hbar = 6.582119514e-16; // eV*s
