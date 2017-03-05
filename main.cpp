@@ -9,6 +9,8 @@
 #include <cstdio>
 #include <chrono>
 #include <functional>
+#include <iomanip>
+#include <sstream>
 
 namespace constants {
 	const double hbar = 6.582119514e-16; // eV*s
@@ -27,23 +29,23 @@ double barrier_rectangle(double x) {
 	return 0.0;
 }
 
-void barrier_schottky_nordheim_roots(double f, double phi, double& x1_out, double& x2_out) {
+void barrier_schottky_nordheim_roots(double f, double phi, double mu, double& x1_out, double& x2_out) {
 	double a = -f; // q_e*V/nm = eV/nm
-	double b = 7.0 + phi;  // mu + phi; eV
+	double b = mu + phi;  // mu + phi; eV
 	double c = -constants::q_e*constants::q_e/(16*constants::pi*constants::eps0); // eV*nm
 	x1_out = (-b+std::sqrt(b*b-4*a*c))/(2*a);
 	x2_out = (-b-std::sqrt(b*b-4*a*c))/(2*a);
 }
 
 /** x - nm; f - V/nm; min_pot - eV */
-double barrier_schottky_nordheim(double x, double f, double phi = 4.5, double min_pot = 0.0) {
+double barrier_schottky_nordheim(double x, double f, double phi = 4.5, double mu = 7.0, double min_pot = 0.0) {
 
 	double a = -f; // q_e*V/nm = eV/nm
-	double b = 7.0 + phi;  // mu + phi; eV
+	double b = mu + phi;  // mu + phi; eV
 	double c = -constants::q_e*constants::q_e/(16*constants::pi*constants::eps0); // eV*nm
 
 	double x1, x2;
-	barrier_schottky_nordheim_roots(f, phi, x1, x2);
+	barrier_schottky_nordheim_roots(f, phi, mu, x1, x2);
 
 	if (x < 0.0) return 0.0;
 	double pot = b + a*(x+x1) + c/(x+x1);
@@ -131,20 +133,30 @@ double calculate_transmission(double energy, double xmin, double xmax,
 	return transmission;
 }
 
+template <typename T>
+std::string to_string_prec(const T a_value, const int n = 1) {
+    std::ostringstream out;
+    out << std::fixed << std::setprecision(n) << a_value;
+    return out.str();
+}
+
 int main() {
 
 	double field = 4.0;
 	double phi = 4.5;
+	double mu = 0.0;
 
 	double emin = 0.0;
 	double emax = 12.0;
 
-	std::string tunnel_file = "./data/tunnel_data_4.txt";
-	std::string potential_file = "./data/potential_4.txt";
+	std::string params = "_f" + to_string_prec(field) + "_p" + to_string_prec(phi)
+										 + "_m" + to_string_prec(mu);
+	std::string tunnel_file = "./data/tunnel_data"+params+".txt";
+	std::string potential_file = "./data/potential"+params+".txt";
 
 	// Roots of the potential:
 	double x1, x2;
-	barrier_schottky_nordheim_roots(field, phi, x1, x2);
+	barrier_schottky_nordheim_roots(field, phi, mu, x1, x2);
 
 	// The coordinate system is chosen such that the first root is x=0
 	// and thus, the second root is at x2-x1
@@ -155,7 +167,7 @@ int main() {
 	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 	FILE * outf = fopen(tunnel_file.c_str(), "w");
 	for (double energy = emin; energy <= emax; energy += 0.01) {
-		auto barrier = [&field, &phi](double x) {return barrier_schottky_nordheim(x, field, phi);};
+		auto barrier = [&field, &phi, &mu](double x) {return barrier_schottky_nordheim(x, field, phi, mu);};
 		double transm = calculate_transmission(energy, xmin, xmax, 20000, barrier);
 
 		printf("%.5f %.10e\n", energy, transm);
@@ -168,7 +180,7 @@ int main() {
 
 	FILE * file = fopen(potential_file.c_str(), "w");
 	for (double x = xmin; x < xmax; x+=0.01) {
-		fprintf(file, "%.2f %.5f\n", x, barrier_schottky_nordheim(x, field, phi));
+		fprintf(file, "%.2f %.5f\n", x, barrier_schottky_nordheim(x, field, phi, mu));
 	}
 	fclose(file);
 

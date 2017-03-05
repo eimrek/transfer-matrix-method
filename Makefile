@@ -3,7 +3,7 @@ ifeq ($(OS), Windows_NT)
     	# Windows environment
 	APP = tmm.exe
 	XCFLAGS = 
-	XLFLAGS = -lmingw32
+	XLFLAGS = #-lmingw32
 else
 	# Linux environment
 	APP = tmm
