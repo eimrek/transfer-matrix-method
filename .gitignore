@@ -5,7 +5,6 @@
 .settings
 
 # Program files
-data
 tmm*
 
 # ipython files

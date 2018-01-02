@@ -144,13 +144,13 @@ int main() {
 
 	double field = 4.0;
 	double phi = 4.5;
-	double mu = 0.0;
+	double mu = 60.0;
 
-	double emin = 0.0;
-	double emax = 12.0;
+	double emin = 50.0;
+	double emax = 70.0;
 
 	std::string params = "_f" + to_string_prec(field) + "_p" + to_string_prec(phi)
-										 + "_m" + to_string_prec(mu);
+						 + "_m" + to_string_prec(mu) + "_em" + to_string_prec(emax);
 	std::string tunnel_file = "./data/tunnel_data"+params+".txt";
 	std::string potential_file = "./data/potential"+params+".txt";
 
@@ -168,7 +168,7 @@ int main() {
 	FILE * outf = fopen(tunnel_file.c_str(), "w");
 	for (double energy = emin; energy <= emax; energy += 0.01) {
 		auto barrier = [&field, &phi, &mu](double x) {return barrier_schottky_nordheim(x, field, phi, mu);};
-		double transm = calculate_transmission(energy, xmin, xmax, 20000, barrier);
+		double transm = calculate_transmission(energy, xmin, xmax, 40000, barrier);
 
 		printf("%.5f %.10e\n", energy, transm);
 		fprintf(outf, "%.5f %.10e\n", energy, transm);
